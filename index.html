@@ -3,35 +3,441 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reproductor de Video TikTok</title>
+    <title>Admin YaMi | Panel de Control</title>
+    <link rel="icon" type="image/png" href="https://img.icons8.com/fluency/48/flash-on.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: black;
-        }
+        :root { --naranja: #ff6b00; --oscuro: #232f3e; --gris: #f0f2f5; --verde: #25d366; --rojo: #ff4444; --azul: #2196F3; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--gris); margin: 0; padding-bottom: 50px; }
+        
+        /* NAVBAR ADMIN */
+        .admin-nav { background: var(--oscuro); padding: 5px 10px; display: flex; justify-content: space-around; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        .nav-tab { color: white; padding: 15px; font-size: 13px; font-weight: 800; cursor: pointer; opacity: 0.5; border-bottom: 4px solid transparent; transition: 0.3s; text-decoration: none; display: flex; align-items: center; gap: 8px; }
+        .nav-tab.active { opacity: 1; border-bottom: 4px solid var(--naranja); color: var(--naranja); }
 
-        .video-container {
-            width: 100vw;
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
+        /* TOAST NOTIFICATION */
+        #toast-container { position: fixed; top: 70px; left: 50%; transform: translateX(-50%); z-index: 9999; width: 90%; max-width: 320px; }
+        .toast-card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border-left: 5px solid var(--naranja); display: flex; align-items: center; gap: 12px; margin-bottom: 10px; font-size: 14px; animation: slideDown 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        @keyframes slideDown { from { opacity:0; transform: translateY(-20px); } to { opacity:1; transform: translateY(0); } }
 
-        video {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-        }
+        .container { max-width: 600px; margin: auto; padding: 20px; }
+        
+        /* FORMULARIOS */
+        .form-container { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; border: 1px solid #eee; }
+        h2 { font-size: 22px; font-weight: 900; color: var(--oscuro); margin-bottom: 20px; letter-spacing: -0.5px; }
+        
+        input, textarea, select { width: 100%; padding: 14px; margin: 8px 0; border: 1px solid #edf2f7; border-radius: 12px; box-sizing: border-box; font-size: 14px; background: #f8fafc; outline: none; transition: 0.3s; }
+        input:focus, select:focus { border-color: var(--naranja); background: white; }
+        
+        .row { display: flex; gap: 10px; }
+        .btn-main { background: var(--naranja); color: white; border: none; padding: 16px; width: 100%; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 16px; margin-top: 10px; transition: 0.3s; box-shadow: 0 4px 12px rgba(255,107,0,0.2); }
+        .btn-main:active { transform: scale(0.98); }
+
+        /* BUSCADOR */
+        .search-box { position: relative; margin-bottom: 20px; }
+        .search-box i { position: absolute; left: 15px; top: 18px; color: #a0aec0; }
+        .search-input { padding-left: 45px !important; border: 1px solid #e2e8f0 !important; background: white !important; border-radius: 15px !important; }
+
+        /* PEDIDOS CARDS */
+        .pedido-card { background: white; padding: 20px; border-radius: 20px; margin-bottom: 20px; border-left: 6px solid var(--azul); box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+        .vendedor-bloque { background: #f1f5f9; border-radius: 15px; padding: 15px; margin: 12px 0; border: 1px solid #e2e8f0; }
+        .vendedor-tag { font-size: 11px; font-weight: 800; color: var(--azul); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 10px; border-bottom: 1px solid #cbd5e1; padding-bottom: 5px; }
+        .item-pedido-mini { font-size: 14px; margin-bottom: 6px; color: #1e293b; display: flex; justify-content: space-between; align-items: center; font-weight: 500; }
+        
+        .grid-acciones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+        .btn-wa-vendedor { background: var(--verde); color: white; border: none; padding: 12px; border-radius: 10px; font-size: 11px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+        .btn-check-vendedor { background: white; color: var(--azul); border: 2px solid var(--azul); padding: 10px; border-radius: 10px; font-size: 11px; font-weight: 800; cursor: pointer; }
+        .btn-check-vendedor.listo { background: #cbd5e1; color: #64748b; border-color: #cbd5e1; cursor: default; }
+
+        /* PRODUCTOS CARDS */
+        .prod-card { background: white; padding: 15px; border-radius: 18px; margin-bottom: 12px; display: flex; align-items: center; gap: 15px; border: 1px solid #f1f5f9; transition: 0.3s; }
+        .prod-card:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+        .prod-card .img-preview { width: 70px; height: 70px; position: relative; flex-shrink: 0; }
+        .prod-card img { width: 70px; height: 70px; object-fit: contain; border-radius: 12px; background: #f8fafc; }
+        .multi-indicator { position: absolute; -top: 5px; -right: 5px; background: var(--naranja); color: white; font-size: 9px; padding: 2px 6px; border-radius: 20px; font-weight: 800; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        
+        .prod-info { flex: 1; }
+        .badge-pendiente { background: #fff7ed; color: #c2410c; font-size: 10px; padding: 3px 8px; border-radius: 6px; font-weight: 800; border: 1px solid #ffedd5; display: inline-block; margin-bottom: 4px; }
+        .time-badge { font-size: 10px; color: #94a3b8; display: block; margin-top: 6px; font-weight: 600; }
+        
+        .actions { display: flex; flex-direction: column; gap: 8px; min-width: 100px; }
+        .btn-act { border: none; padding: 10px; border-radius: 10px; font-size: 10px; font-weight: 800; cursor: pointer; text-align: center; text-transform: uppercase; }
+        .btn-edit { background: #f1f5f9; color: #475569; }
+        .btn-del { background: #fef2f2; color: var(--rojo); border: 1px solid #fee2e2; }
+        .btn-approve-prod { background: var(--azul); color: white; box-shadow: 0 4px 10px rgba(33,150,243,0.2); }
+        .btn-notify-prod { background: var(--verde); color: white; }
+
+        /* MODAL */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; z-index: 10000; }
+        .modal-card { background: white; padding: 30px; border-radius: 28px; width: 85%; max-width: 340px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.4); animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes popIn { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .modal-card i { font-size: 50px; color: var(--rojo); margin-bottom: 20px; }
+        .modal-card h3 { margin: 0; color: var(--oscuro); font-weight: 900; }
+        .modal-card p { font-size: 15px; color: #64748b; margin: 12px 0 25px; line-height: 1.5; }
+        .modal-btns { display: flex; gap: 12px; }
+        .btn-modal { flex: 1; padding: 15px; border: none; border-radius: 15px; font-weight: 800; cursor: pointer; font-size: 14px; }
+        .btn-cancel { background: #f1f5f9; color: #475569; }
+        .btn-confirm-del { background: var(--rojo); color: white; }
+
+        /* LOGIN */
+        #login-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: var(--oscuro); }
+        .login-card { background: white; padding: 40px 30px; border-radius: 30px; text-align: center; width: 85%; max-width: 340px; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
+        .yami-logo-admin { background: var(--naranja); color: white; width: 60px; height: 60px; border-radius: 18px; display: flex; align-items: center; justify-content: center; font-size: 32px; transform: rotate(-10deg); margin: 0 auto 20px; font-weight: 900; }
     </style>
 </head>
 <body>
-    <div class="video-container">
-        <video controls poster="tar.png">
-            <source src="tar.mp4" type="video/mp4">
-            Tu navegador no soporta el elemento de video.
-        </video>
+
+<div id="toast-container"></div>
+
+<div id="modal-delete" class="modal-overlay">
+    <div class="modal-card">
+        <i class="fas fa-exclamation-circle"></i>
+        <h3>¿Eliminar este ítem?</h3>
+        <p>Esta acción es permanente y no podrás recuperar la información una vez borrada.</p>
+        <div class="modal-btns">
+            <button class="btn-modal btn-cancel" onclick="closeModal()">CANCELAR</button>
+            <button class="btn-modal btn-confirm-del" id="confirm-delete-btn">SÍ, ELIMINAR</button>
+        </div>
     </div>
+</div>
+
+<div id="login-screen">
+    <div class="login-card">
+        <div class="yami-logo-admin"><i class="fas fa-bolt"></i></div>
+        <h3 style="margin-bottom: 5px; font-weight: 900;">ADMIN YaMi</h3>
+        <p style="color: #64748b; font-size: 14px; margin-bottom: 25px;">Acceso restringido</p>
+        <input type="password" id="pass-input" placeholder="Introduce la clave maestra" style="text-align: center;">
+        <button class="btn-main" onclick="checkPass()">ENTRAR AL PANEL</button>
+    </div>
+</div>
+
+<div id="admin-content" style="display:none;">
+    <div class="admin-nav">
+        <div class="nav-tab active" id="tab-pedidos" onclick="showTab('pedidos')">
+            <i class="fas fa-shopping-bag"></i> PEDIDOS
+        </div>
+        <div class="nav-tab" id="tab-productos" onclick="showTab('productos')">
+            <i class="fas fa-boxes"></i> INVENTARIO
+        </div>
+        <a href="banner.html" class="nav-tab" style="opacity: 1;">
+            <i class="fas fa-image"></i> BANNERS
+        </a>
+    </div>
+
+    <div class="container">
+        <div id="sec-pedidos">
+            <h2>Pedidos Recientes</h2>
+            <div id="lista-pedidos">Cargando flujos de pedidos...</div>
+        </div>
+
+        <div id="sec-productos" style="display:none;">
+            <h2>Gestionar Productos</h2>
+            <div class="form-container">
+                <input type="hidden" id="edit-id">
+                <label style="font-size: 11px; font-weight: 800; color: #94a3b8; margin-left: 5px;">DETALLES BÁSICOS</label>
+                <input type="text" id="nombre" placeholder="Nombre del Producto (ej: Arroz Diana)">
+                <textarea id="desc" rows="2" placeholder="Descripción breve del producto..."></textarea>
+                
+                <div class="row">
+                    <div style="flex:2">
+                        <label style="font-size: 11px; font-weight: 800; color: #94a3b8; margin-left: 5px;">CATEGORÍA</label>
+                        <select id="categoria">
+                            <option value="General">General</option>
+                            <option value="Viveres">Precios Bajos</option>
+                            <option value="Aseo">Variedades</option>
+                            <option value="Bebidas">5 Estrellas</option>
+                            <option value="Promociones">🔥 Ofertas</option>
+                            <option value="Externo">📦 Externos</option>
+                        </select>
+                    </div>
+                    <div style="flex:1">
+                        <label style="font-size: 11px; font-weight: 800; color: #94a3b8; margin-left: 5px;">STOCK</label>
+                        <input type="number" id="stock" placeholder="Qty">
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div style="flex:1">
+                        <label style="font-size: 11px; font-weight: 800; color: #94a3b8; margin-left: 5px;">PRECIO OFERTA</label>
+                        <input type="number" id="precio" placeholder="$ Actual">
+                    </div>
+                    <div style="flex:1">
+                        <label style="font-size: 11px; font-weight: 800; color: #94a3b8; margin-left: 5px;">PRECIO NORMAL</label>
+                        <input type="number" id="precio-old" placeholder="$ Antes">
+                    </div>
+                </div>
+
+                <label style="font-size: 11px; font-weight: 800; color: #94a3b8; margin-left: 5px;">MULTIMEDIA (IMGBB)</label>
+                <input type="text" id="url" placeholder="URL Imagen de portada">
+                <textarea id="urls-extra" rows="2" placeholder="URLs adicionales separadas por coma..."></textarea>
+                
+                <button id="btn-save" class="btn-main">ACTUALIZAR CATÁLOGO</button>
+                <button id="btn-cancel-edit" onclick="limpiarForm()" style="display:none; background: #eee; color: #555; border:none; width:100%; padding:12px; border-radius:12px; margin-top:8px; font-weight:bold;">CANCELAR EDICIÓN</button>
+            </div>
+
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="filter-input" class="search-input" placeholder="Buscar por nombre de producto..." onkeyup="renderProducts()">
+            </div>
+            <div id="lista-productos"></div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, updateDoc, doc, getDoc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyAKCsoaFZ566UlgM1TeVqWNeOljroaP8VA",
+        authDomain: "express-market-868d9.firebaseapp.com",
+        projectId: "express-market-868d9",
+        storageBucket: "express-market-868d9.firebasestorage.app",
+        messagingSenderId: "502987186701",
+        appId: "1:502987186701:web:9fb3c28ce377fb27552b44"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    let allProducts = [];
+    let productToDelete = null;
+    let typeToDelete = 'producto';
+
+    window.showTab = (tab) => {
+        document.getElementById('sec-pedidos').style.display = tab === 'pedidos' ? 'block' : 'none';
+        document.getElementById('sec-productos').style.display = tab === 'productos' ? 'block' : 'none';
+        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+        const activeTab = document.getElementById('tab-' + tab);
+        if(activeTab) activeTab.classList.add('active');
+    };
+
+    window.checkPass = () => {
+        if(document.getElementById('pass-input').value === "1234") { 
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('admin-content').style.display = 'block';
+        } else {
+            alert("Clave incorrecta");
+        }
+    };
+
+    function obtenerTiempoHace(fecha) {
+        if (!fecha) return "Recién publicado";
+        const ahora = new Date();
+        const pasado = fecha.toDate();
+        const diffInSeconds = Math.floor((ahora - pasado) / 1000);
+        if (diffInSeconds < 60) return `Hace unos segundos`;
+        const diffInMinutes = Math.floor(diffInSeconds / 60);
+        if (diffInMinutes < 60) return `Hace ${diffInMinutes} min`;
+        const diffInHours = Math.floor(diffInMinutes / 60);
+        if (diffInHours < 24) return `Hace ${diffInHours} horas`;
+        return pasado.toLocaleDateString();
+    }
+
+    // --- MODAL LOGIC ---
+    window.closeModal = () => {
+        document.getElementById('modal-delete').style.display = 'none';
+        productToDelete = null;
+    };
+
+    window.confirmDelete = (id, type = 'producto') => {
+        productToDelete = id;
+        typeToDelete = type;
+        document.getElementById('modal-delete').style.display = 'flex';
+    };
+
+    document.getElementById('confirm-delete-btn').onclick = async () => {
+        if (productToDelete) {
+            const collectionName = typeToDelete === 'producto' ? "productos" : "pedidos";
+            await deleteDoc(doc(db, collectionName, productToDelete));
+            showToast(typeToDelete === 'producto' ? "Producto borrado" : "Pedido archivado");
+            closeModal();
+        }
+    };
+
+    // --- PEDIDOS ---
+    onSnapshot(query(collection(db, "pedidos"), orderBy("fecha", "desc")), (snapshot) => {
+        const lista = document.getElementById('lista-pedidos');
+        lista.innerHTML = '';
+        if(snapshot.empty) lista.innerHTML = '<div style="text-align:center; padding:40px; color:#94a3b8;">No hay pedidos pendientes.</div>';
+        
+        snapshot.forEach(pDoc => {
+            const pedido = pDoc.data();
+            const id = pDoc.id;
+            const grupos = {};
+            
+            pedido.items.forEach((item, index) => {
+                const wa = item.waVendedor || "Sede Central YaMi";
+                if (!grupos[wa]) grupos[wa] = [];
+                grupos[wa].push({ ...item, originalIndex: index });
+            });
+
+            let bloquesHtml = '';
+            for (const wa in grupos) {
+                const items = grupos[wa];
+                const avisados = items.every(i => i.notificado);
+                const msgWA = encodeURIComponent(`🚀 *YaMi Admin - Nueva Venta*\n\nHola, tienes un pedido listo:\n\n` +
+                    items.map(i => `• ${i.cantidad}x ${i.nombre}`).join('\n') + 
+                    `\n\n👤 *Cliente:* ${pedido.cliente}` +
+                    `\n📞 *Contacto:* ${pedido.telefono}` +
+                    `\n\n_Por favor, comunicate con el cliente para acordar el pago y la entrega._`);
+                
+                const indices = items.map(i => i.originalIndex);
+
+                bloquesHtml += `
+                    <div class="vendedor-bloque" style="${avisados ? 'opacity: 0.65; border-color: #cbd5e1;' : ''}">
+                        <span class="vendedor-tag"><i class="fas fa-store"></i> ${wa}</span>
+                        ${items.map(i => `<div class="item-pedido-mini"><span>${i.cantidad}x ${i.nombre}</span> ${i.notificado ? '<i class="fas fa-check-circle" style="color:var(--verde)"></i>' : ''}</div>`).join('')}
+                        ${wa !== "Sede Central YaMi" ? `
+                        <div class="grid-acciones">
+                            <button class="btn-wa-vendedor" onclick="window.open('https://wa.me/${wa}?text=${msgWA}')"><i class="fab fa-whatsapp"></i> AVISAR</button>
+                            <button class="btn-check-vendedor ${avisados ? 'listo' : ''}" onclick="${avisados ? '' : `marcarNotificado('${id}', ${JSON.stringify(indices)})`}">${avisados ? 'NOTIFICADO' : 'MARCAR'}</button>
+                        </div>` : ''}
+                    </div>`;
+            }
+
+            lista.innerHTML += `<div class="pedido-card">
+                <div style="display:flex; justify-content:space-between; align-items:start;">
+                    <div>
+                        <b style="font-size:16px; color:var(--oscuro)">${pedido.cliente}</b>
+                        <div style="font-size:11px; color:#64748b;"><i class="far fa-calendar-alt"></i> ${obtenerTiempoHace(pedido.fecha)}</div>
+                    </div>
+                    <span style="background:#fef2f2; color:var(--rojo); padding:5px 10px; border-radius:10px; font-weight:800; font-size:15px;">$${pedido.total.toLocaleString()}</span>
+                </div>
+                ${bloquesHtml}
+                <div style="display:flex; gap:10px; margin-top:10px;">
+                    <button class="btn-approve-prod" style="flex:1; padding:12px; border:none; border-radius:12px; font-weight:800; cursor:pointer;" onclick="window.open('https://wa.me/${pedido.telefono}')"><i class="fab fa-whatsapp"></i> HABLAR AL CLIENTE</button>
+                    <button class="btn-del" style="width:50px; border:none; border-radius:12px; cursor:pointer;" onclick="confirmDelete('${id}', 'pedido')"><i class="fas fa-archive"></i></button>
+                </div>
+            </div>`;
+        });
+    });
+
+    window.marcarNotificado = async (pedidoId, indices) => {
+        const ref = doc(db, "pedidos", pedidoId);
+        const snap = await getDoc(ref);
+        const items = [...snap.data().items];
+        indices.forEach(idx => items[idx].notificado = true);
+        await updateDoc(ref, { items: items });
+        showToast("Vendedor Notificado");
+    };
+
+    // --- PRODUCTOS ---
+    onSnapshot(query(collection(db, "productos"), orderBy("fecha", "desc")), (snapshot) => {
+        allProducts = [];
+        snapshot.forEach(pDoc => {
+            allProducts.push({ id: pDoc.id, ...pDoc.data() });
+        });
+        renderProducts();
+    });
+
+    window.renderProducts = () => {
+        const lista = document.getElementById('lista-productos');
+        const filter = document.getElementById('filter-input').value.toLowerCase();
+        lista.innerHTML = '';
+
+        const filtrados = allProducts.filter(p => p.nombre.toLowerCase().includes(filter));
+
+        filtrados.forEach(p => {
+            const esPendiente = p.estado === "pendiente";
+            const msgAprobado = encodeURIComponent(`✅ *YaMi - Producto Aprobado*\n\nTu producto "${p.nombre}" ya está activo en la plataforma.`);
+            const tieneVarias = p.imagenes && p.imagenes.length > 1;
+
+            lista.innerHTML += `
+                <div class="prod-card" style="border-left: 5px solid ${esPendiente ? '#f97316' : 'var(--verde)'}">
+                    <div class="img-preview">
+                        <img src="${p.imagen}">
+                        ${tieneVarias ? `<span class="multi-indicator">${p.imagenes.length} <i class="fas fa-images"></i></span>` : ''}
+                    </div>
+                    <div class="prod-info">
+                        ${esPendiente ? '<span class="badge-pendiente">PENDIENTE</span><br>' : ''}
+                        <strong style="color:var(--oscuro); font-size:14px;">${p.nombre}</strong><br>
+                        <small style="color:#64748b; font-weight:600;">Stock: ${p.stock} | $${p.precio.toLocaleString()}</small><br>
+                        <small style="color:var(--azul); font-weight:800; font-size:10px;">👤 ${p.waVendedor || 'Admin YaMi'}</small>
+                        <span class="time-badge"><i class="far fa-clock"></i> ${obtenerTiempoHace(p.fecha)}</span>
+                    </div>
+                    <div class="actions">
+                        ${esPendiente ? `<button class="btn-act btn-approve-prod" onclick="aprobarProd('${p.id}')">APROBAR</button>` : ''}
+                        ${!esPendiente && p.waVendedor ? `<button class="btn-act btn-notify-prod" onclick="window.open('https://wa.me/${p.waVendedor}?text=${msgAprobado}')">NOTIFICAR</button>` : ''}
+                        <button class="btn-act btn-edit" onclick="prepararEdit('${p.id}')">EDITAR</button>
+                        <button class="btn-act btn-del" onclick="confirmDelete('${p.id}')">BORRAR</button>
+                    </div>
+                </div>`;
+        });
+    };
+
+    window.aprobarProd = async (id) => {
+        await updateDoc(doc(db, "productos", id), { estado: "aprobado", fecha: serverTimestamp() });
+        showToast("Producto ya es visible");
+    };
+
+    document.getElementById('btn-save').addEventListener('click', async () => {
+        const id = document.getElementById('edit-id').value;
+        const mainUrl = document.getElementById('url').value;
+        const extraUrlsText = document.getElementById('urls-extra').value;
+        
+        let imgArray = [mainUrl];
+        if(extraUrlsText.trim() !== "") {
+            const extras = extraUrlsText.split(',').map(u => u.trim()).filter(u => u !== "");
+            imgArray = imgArray.concat(extras);
+        }
+
+        const datos = {
+            nombre: document.getElementById('nombre').value,
+            descripcion: document.getElementById('desc').value,
+            categoria: document.getElementById('categoria').value,
+            precio: Number(document.getElementById('precio').value),
+            precioOld: Number(document.getElementById('precio-old').value) || 0,
+            stock: Number(document.getElementById('stock').value),
+            imagen: mainUrl,
+            imagenes: imgArray,
+            estado: "aprobado",
+            fecha: serverTimestamp()
+        };
+
+        if(id) await updateDoc(doc(db, "productos", id), datos);
+        else await addDoc(collection(db, "productos"), datos);
+        
+        limpiarForm();
+        showToast("Cambios guardados");
+    });
+
+    window.prepararEdit = (id) => {
+        const p = allProducts.find(x => x.id === id);
+        document.getElementById('edit-id').value = p.id;
+        document.getElementById('nombre').value = p.nombre;
+        document.getElementById('desc').value = p.descripcion;
+        document.getElementById('categoria').value = p.categoria;
+        document.getElementById('precio').value = p.precio;
+        document.getElementById('precio-old').value = p.precioOld || '';
+        document.getElementById('stock').value = p.stock;
+        document.getElementById('url').value = p.imagen;
+        
+        if(p.imagenes && p.imagenes.length > 1) {
+            document.getElementById('urls-extra').value = p.imagenes.slice(1).join(', ');
+        } else {
+            document.getElementById('urls-extra').value = '';
+        }
+        
+        document.getElementById('btn-save').innerText = "GUARDAR CAMBIOS";
+        document.getElementById('btn-cancel-edit').style.display = 'block';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    window.limpiarForm = () => {
+        document.getElementById('edit-id').value = '';
+        document.querySelectorAll('.form-container input, .form-container textarea').forEach(i => i.value = '');
+        document.getElementById('btn-save').innerText = "ACTUALIZAR CATÁLOGO";
+        document.getElementById('btn-cancel-edit').style.display = 'none';
+    }
+
+    function showToast(text) {
+        const c = document.getElementById('toast-container');
+        const t = document.createElement('div');
+        t.className = 'toast-card';
+        t.innerHTML = `<i class="fas fa-check-circle" style="color:var(--naranja)"></i> <span style="font-weight:bold">${text}</span>`;
+        c.appendChild(t);
+        setTimeout(() => t.remove(), 3000);
+    }
+</script>
 </body>
 </html>
