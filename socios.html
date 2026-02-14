@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YaMi | Directorio de Socios</title>
+    <link rel="icon" type="image/png" href="https://img.icons8.com/fluency/48/flash-on.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root { --naranja: #ff6b00; --oscuro: #232f3e; --gris: #f0f2f5; --azul: #2196f3; --rojo: #ff4444; --verde: #25d366; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--gris); margin: 0; padding: 20px; }
+        
+        header { background: var(--oscuro); color: white; padding: 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .btn-back { color: white; text-decoration: none; font-size: 14px; font-weight: bold; }
+
+        /* BUSCADOR */
+        .search-container { position: relative; margin-bottom: 20px; }
+        .search-input { width: 100%; padding: 15px 45px 15px 15px; border-radius: 15px; border: none; box-shadow: 0 4px 10px rgba(0,0,0,0.05); box-sizing: border-box; font-size: 14px; outline: none; }
+        .search-icon { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); color: #94a3b8; }
+
+        .card-socio { background: white; border-radius: 20px; padding: 18px; margin-bottom: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); border-left: 6px solid var(--naranja); display: flex; justify-content: space-between; align-items: center; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .info-socio h3 { margin: 0; font-size: 17px; color: var(--oscuro); font-weight: 800; }
+        .info-socio p { margin: 4px 0; font-size: 13px; color: #64748b; }
+        
+        .pass-box { background: #f1f5f9; padding: 4px 10px; border-radius: 8px; font-family: monospace; font-weight: 900; color: var(--naranja); font-size: 15px; border: 1px dashed #cbd5e1; }
+        
+        .actions { display: flex; align-items: center; gap: 15px; }
+        .btn-wa { color: var(--verde); font-size: 24px; text-decoration: none; }
+        .btn-del { color: #cbd5e1; border: none; background: none; cursor: pointer; font-size: 20px; transition: 0.3s; }
+        .btn-del:hover { color: var(--rojo); }
+
+        /* NOTIFICACIÓN TOAST */
+        #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--oscuro); color: white; padding: 12px 25px; border-radius: 50px; font-size: 13px; font-weight: bold; display: none; z-index: 10001; box-shadow: 0 5px 20px rgba(0,0,0,0.3); border-bottom: 3px solid var(--naranja); }
+
+        /* MODAL */
+        .modal-confirm { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 10000; padding: 20px; box-sizing: border-box; }
+        .modal-card { background: white; padding: 25px; border-radius: 25px; max-width: 320px; text-align: center; }
+        .btn-modal { width: 100%; padding: 12px; border-radius: 12px; border: none; font-weight: bold; margin-top: 10px; cursor: pointer; }
+        .btn-si { background: var(--rojo); color: white; }
+        .btn-no { background: var(--gris); color: var(--oscuro); }
+
+        #loader { text-align: center; margin-top: 50px; font-weight: bold; color: var(--oscuro); }
+    </style>
+</head>
+<body>
+
+<div id="toast"></div>
+
+<div id="confirm-modal" class="modal-confirm">
+    <div class="modal-card">
+        <div style="font-size: 40px; color: var(--rojo); margin-bottom: 15px;"><i class="fas fa-trash-alt"></i></div>
+        <h3 style="margin:0; font-size: 16px;">¿Desea borrar este socio de la tienda YaMi?</h3>
+        <p id="socio-nombre" style="font-weight: bold; color: var(--naranja); margin: 10px 0;"></p>
+        <button class="btn-modal btn-si" id="confirm-ok">SÍ, BORRAR AHORA</button>
+        <button class="btn-modal btn-no" onclick="cerrarModal()">NO, CANCELAR</button>
+    </div>
+</div>
+
+<header>
+    <div>
+        <h2 style="margin:0; font-size: 18px;"><i class="fas fa-bolt"></i> Socios YaMi</h2>
+    </div>
+    <a href="admin.html" class="btn-back"><i class="fas fa-chevron-left"></i> Volver</a>
+</header>
+
+<div class="search-container">
+    <input type="number" id="buscador" class="search-input" placeholder="Buscar por número de WhatsApp..." oninput="filtrarSocios()">
+    <i class="fas fa-search search-icon"></i>
+</div>
+
+<div id="loader"><i class="fas fa-spinner fa-spin"></i> Cargando socios...</div>
+<div id="lista-socios"></div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, onSnapshot, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyAKCsoaFZ566UlgM1TeVqWNeOljroaP8VA",
+        authDomain: "express-market-868d9.firebaseapp.com",
+        projectId: "express-market-868d9",
+        storageBucket: "express-market-868d9.firebasestorage.app",
+        messagingSenderId: "502987186701",
+        appId: "1:502987186701:web:9fb3c28ce377fb27552b44"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const container = document.getElementById('lista-socios');
+    const loader = document.getElementById('loader');
+    const toast = document.getElementById('toast');
+    let idAEliminar = null;
+    let todosLosSocios = [];
+
+    // Notificación Toast
+    function mostrarNotificacion(msj) {
+        toast.innerText = msj;
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 4000);
+    }
+
+    // Escuchar cambios en la base de datos
+    onSnapshot(collection(db, "socios"), (snapshot) => {
+        loader.style.display = 'none';
+        todosLosSocios = [];
+        snapshot.forEach(docSnap => {
+            todosLosSocios.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        renderizar(todosLosSocios);
+    });
+
+    function renderizar(data) {
+        container.innerHTML = '';
+        if(data.length === 0) {
+            container.innerHTML = '<p style="text-align:center; color:#999; margin-top:20px;">No se encontraron socios.</p>';
+            return;
+        }
+
+        data.forEach(s => {
+            const mensajeWA = `Hola *${s.nombreTienda}*, te saludamos de *YaMi*. Tu código de acceso es: *${s.codigo}* 🚀`;
+            const urlWA = `https://wa.me/${s.celular}?text=${encodeURIComponent(mensajeWA)}`;
+
+            container.innerHTML += `
+                <div class="card-socio" data-wa="${s.celular}">
+                    <div class="info-socio">
+                        <h3>${s.nombreTienda}</h3>
+                        <p><i class="fas fa-phone"></i> ${s.celular}</p>
+                        <div style="margin-top:8px;">
+                            <span class="pass-box">${s.codigo}</span>
+                        </div>
+                    </div>
+                    <div class="actions">
+                        <a href="${urlWA}" target="_blank" class="btn-wa">
+                            <i class="fab fa-whatsapp"></i>
+                        </a>
+                        <button class="btn-del" onclick="abrirModal('${s.id}', '${s.nombreTienda}')">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    // Buscador por WhatsApp
+    window.filtrarSocios = () => {
+        const busqueda = document.getElementById('buscador').value.trim();
+        const filtrados = todosLosSocios.filter(s => s.celular.includes(busqueda));
+        renderizar(filtrados);
+    };
+
+    // Modal y Eliminación
+    window.abrirModal = (id, nombre) => {
+        idAEliminar = id;
+        document.getElementById('socio-nombre').innerText = nombre;
+        document.getElementById('confirm-modal').style.display = 'flex';
+    };
+
+    window.cerrarModal = () => {
+        document.getElementById('confirm-modal').style.display = 'none';
+        idAEliminar = null;
+    };
+
+    document.getElementById('confirm-ok').onclick = async () => {
+        if(idAEliminar) {
+            try {
+                await deleteDoc(doc(db, "socios", idAEliminar));
+                cerrarModal();
+                mostrarNotificacion("El socio se ha borrado en la base de datos de YaMi");
+            } catch (e) {
+                mostrarNotificacion("Error al borrar");
+            }
+        }
+    };
+</script>
+
+</body>
+</html>
