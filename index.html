@@ -12,7 +12,7 @@
         
         /* NAVBAR ADMIN */
         .admin-nav { background: var(--oscuro); padding: 5px 10px; display: flex; justify-content: space-around; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
-        .nav-tab { color: white; padding: 15px; font-size: 13px; font-weight: 800; cursor: pointer; opacity: 0.5; border-bottom: 4px solid transparent; transition: 0.3s; text-decoration: none; display: flex; align-items: center; gap: 8px; }
+        .nav-tab { color: white; padding: 12px; font-size: 10px; font-weight: 800; cursor: pointer; opacity: 0.5; border-bottom: 4px solid transparent; transition: 0.3s; text-decoration: none; display: flex; align-items: center; gap: 8px; }
         .nav-tab.active { opacity: 1; border-bottom: 4px solid var(--naranja); color: var(--naranja); }
 
         /* TOAST NOTIFICATION */
@@ -54,7 +54,7 @@
         .prod-card:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
         .prod-card .img-preview { width: 70px; height: 70px; position: relative; flex-shrink: 0; }
         .prod-card img { width: 70px; height: 70px; object-fit: contain; border-radius: 12px; background: #f8fafc; }
-        .multi-indicator { position: absolute; -top: 5px; -right: 5px; background: var(--naranja); color: white; font-size: 9px; padding: 2px 6px; border-radius: 20px; font-weight: 800; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .multi-indicator { position: absolute; top: -5px; right: -5px; background: var(--naranja); color: white; font-size: 9px; padding: 2px 6px; border-radius: 20px; font-weight: 800; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
         
         .prod-info { flex: 1; }
         .badge-pendiente { background: #fff7ed; color: #c2410c; font-size: 10px; padding: 3px 8px; border-radius: 6px; font-weight: 800; border: 1px solid #ffedd5; display: inline-block; margin-bottom: 4px; }
@@ -119,6 +119,9 @@
         <div class="nav-tab" id="tab-productos" onclick="showTab('productos')">
             <i class="fas fa-boxes"></i> INVENTARIO
         </div>
+        <a href="socios.html" class="nav-tab" style="opacity: 1;">
+            <i class="fas fa-users"></i> SOCIOS
+        </a>
         <a href="banner.html" class="nav-tab" style="opacity: 1;">
             <i class="fas fa-image"></i> BANNERS
         </a>
@@ -211,12 +214,13 @@
         if(activeTab) activeTab.classList.add('active');
     };
 
+    // FUNCIÓN DE LOGIN CORREGIDA PARA USAR TOAST
     window.checkPass = () => {
         if(document.getElementById('pass-input').value === "1234") { 
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('admin-content').style.display = 'block';
         } else {
-            alert("Clave incorrecta");
+            showToast("Clave maestra incorrecta", true);
         }
     };
 
@@ -339,7 +343,7 @@
 
         filtrados.forEach(p => {
             const esPendiente = p.estado === "pendiente";
-            const msgAprobado = encodeURIComponent(`✅ *YaMi - Producto Aprobado*\n\nTu producto "${p.nombre}" ya está activo en la plataforma.`);
+            const msgAprobado = encodeURIComponent(`✔️ *YaMi - Producto Aprobado*\n\nTu producto "${p.nombre}" ya está activo en la plataforma.`);
             const tieneVarias = p.imagenes && p.imagenes.length > 1;
 
             lista.innerHTML += `
@@ -430,11 +434,17 @@
         document.getElementById('btn-cancel-edit').style.display = 'none';
     }
 
-    function showToast(text) {
+    // TOAST MODIFICADO PARA SOPORTAR ERRORES
+    function showToast(text, isError = false) {
         const c = document.getElementById('toast-container');
         const t = document.createElement('div');
         t.className = 'toast-card';
-        t.innerHTML = `<i class="fas fa-check-circle" style="color:var(--naranja)"></i> <span style="font-weight:bold">${text}</span>`;
+        if(isError) t.style.borderLeftColor = 'var(--rojo)';
+        
+        t.innerHTML = `
+            <i class="fas ${isError ? 'fa-times-circle' : 'fa-check-circle'}" style="color:${isError ? 'var(--rojo)' : 'var(--naranja)'}"></i> 
+            <span style="font-weight:bold">${text}</span>
+        `;
         c.appendChild(t);
         setTimeout(() => t.remove(), 3000);
     }
