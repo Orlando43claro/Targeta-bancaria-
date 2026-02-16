@@ -11,8 +11,8 @@
         body { font-family: 'Segoe UI', sans-serif; background: var(--gris); margin: 0; padding-bottom: 50px; }
         
         /* NAVBAR ADMIN */
-        .admin-nav { background: var(--oscuro); padding: 5px 10px; display: flex; justify-content: space-around; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
-        .nav-tab { color: white; padding: 12px; font-size: 10px; font-weight: 800; cursor: pointer; opacity: 0.5; border-bottom: 4px solid transparent; transition: 0.3s; text-decoration: none; display: flex; align-items: center; gap: 8px; }
+        .admin-nav { background: var(--oscuro); padding: 5px 10px; display: flex; justify-content: space-around; position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.2); overflow-x: auto; }
+        .nav-tab { color: white; padding: 12px; font-size: 10px; font-weight: 800; cursor: pointer; opacity: 0.5; border-bottom: 4px solid transparent; transition: 0.3s; text-decoration: none; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
         .nav-tab.active { opacity: 1; border-bottom: 4px solid var(--naranja); color: var(--naranja); }
 
         /* TOAST NOTIFICATION */
@@ -119,10 +119,13 @@
         <div class="nav-tab" id="tab-productos" onclick="showTab('productos')">
             <i class="fas fa-boxes"></i> INVENTARIO
         </div>
-        <a href="socios.html" class="nav-tab" style="opacity: 1;">
+        <a href="secciones.html" class="nav-tab">
+            <i class="fas fa-list-ul"></i> SECCIONES
+        </a>
+        <a href="socios.html" class="nav-tab">
             <i class="fas fa-users"></i> SOCIOS
         </a>
-        <a href="banner.html" class="nav-tab" style="opacity: 1;">
+        <a href="banner.html" class="nav-tab">
             <i class="fas fa-image"></i> BANNERS
         </a>
     </div>
@@ -145,12 +148,7 @@
                     <div style="flex:2">
                         <label style="font-size: 11px; font-weight: 800; color: #94a3b8; margin-left: 5px;">CATEGORÍA</label>
                         <select id="categoria">
-                            <option value="General">General</option>
-                            <option value="Viveres">Precios Bajos</option>
-                            <option value="Aseo">Variedades</option>
-                            <option value="Bebidas">5 Estrellas</option>
-                            <option value="Promociones">🔥 Ofertas</option>
-                            <option value="Externo">📦 Externos</option>
+                            <option value="">Cargando categorías...</option>
                         </select>
                     </div>
                     <div style="flex:1">
@@ -206,6 +204,20 @@
     let productToDelete = null;
     let typeToDelete = 'producto';
 
+    // --- ESCUCHAR CATEGORÍAS (DINÁMICO) ---
+    onSnapshot(query(collection(db, "categorias"), orderBy("fecha", "asc")), (snapshot) => {
+        const select = document.getElementById('categoria');
+        if (!select) return;
+        select.innerHTML = '';
+        if(snapshot.empty) {
+            select.innerHTML = '<option value="General">General</option>';
+        }
+        snapshot.forEach(d => {
+            const cat = d.data();
+            select.innerHTML += `<option value="${cat.nombre}">${cat.nombre}</option>`;
+        });
+    });
+
     window.showTab = (tab) => {
         document.getElementById('sec-pedidos').style.display = tab === 'pedidos' ? 'block' : 'none';
         document.getElementById('sec-productos').style.display = tab === 'productos' ? 'block' : 'none';
@@ -214,7 +226,6 @@
         if(activeTab) activeTab.classList.add('active');
     };
 
-    // FUNCIÓN DE LOGIN CORREGIDA PARA USAR TOAST
     window.checkPass = () => {
         if(document.getElementById('pass-input').value === "1234") { 
             document.getElementById('login-screen').style.display = 'none';
@@ -237,7 +248,6 @@
         return pasado.toLocaleDateString();
     }
 
-    // --- MODAL LOGIC ---
     window.closeModal = () => {
         document.getElementById('modal-delete').style.display = 'none';
         productToDelete = null;
@@ -258,7 +268,6 @@
         }
     };
 
-    // --- PEDIDOS ---
     onSnapshot(query(collection(db, "pedidos"), orderBy("fecha", "desc")), (snapshot) => {
         const lista = document.getElementById('lista-pedidos');
         lista.innerHTML = '';
@@ -325,7 +334,6 @@
         showToast("Vendedor Notificado");
     };
 
-    // --- PRODUCTOS ---
     onSnapshot(query(collection(db, "productos"), orderBy("fecha", "desc")), (snapshot) => {
         allProducts = [];
         snapshot.forEach(pDoc => {
@@ -336,14 +344,17 @@
 
     window.renderProducts = () => {
         const lista = document.getElementById('lista-productos');
-        const filter = document.getElementById('filter-input').value.toLowerCase();
+        const filterInput = document.getElementById('filter-input');
+        if (!lista || !filterInput) return;
+        
+        const filter = filterInput.value.toLowerCase();
         lista.innerHTML = '';
 
         const filtrados = allProducts.filter(p => p.nombre.toLowerCase().includes(filter));
 
         filtrados.forEach(p => {
             const esPendiente = p.estado === "pendiente";
-            const msgAprobado = encodeURIComponent(`✔️ *YaMi - Producto Aprobado*\n\nTu producto "${p.nombre}" ya está activo en la plataforma.`);
+            const msgAprobado = encodeURIComponent(`✅ *YaMi - Producto Aprobado*\n\nTu producto "${p.nombre}" ya está activo en la plataforma.`);
             const tieneVarias = p.imagenes && p.imagenes.length > 1;
 
             lista.innerHTML += `
@@ -374,36 +385,39 @@
         showToast("Producto ya es visible");
     };
 
-    document.getElementById('btn-save').addEventListener('click', async () => {
-        const id = document.getElementById('edit-id').value;
-        const mainUrl = document.getElementById('url').value;
-        const extraUrlsText = document.getElementById('urls-extra').value;
-        
-        let imgArray = [mainUrl];
-        if(extraUrlsText.trim() !== "") {
-            const extras = extraUrlsText.split(',').map(u => u.trim()).filter(u => u !== "");
-            imgArray = imgArray.concat(extras);
-        }
+    const btnSave = document.getElementById('btn-save');
+    if (btnSave) {
+        btnSave.addEventListener('click', async () => {
+            const id = document.getElementById('edit-id').value;
+            const mainUrl = document.getElementById('url').value;
+            const extraUrlsText = document.getElementById('urls-extra').value;
+            
+            let imgArray = [mainUrl];
+            if(extraUrlsText.trim() !== "") {
+                const extras = extraUrlsText.split(',').map(u => u.trim()).filter(u => u !== "");
+                imgArray = imgArray.concat(extras);
+            }
 
-        const datos = {
-            nombre: document.getElementById('nombre').value,
-            descripcion: document.getElementById('desc').value,
-            categoria: document.getElementById('categoria').value,
-            precio: Number(document.getElementById('precio').value),
-            precioOld: Number(document.getElementById('precio-old').value) || 0,
-            stock: Number(document.getElementById('stock').value),
-            imagen: mainUrl,
-            imagenes: imgArray,
-            estado: "aprobado",
-            fecha: serverTimestamp()
-        };
+            const datos = {
+                nombre: document.getElementById('nombre').value,
+                descripcion: document.getElementById('desc').value,
+                categoria: document.getElementById('categoria').value,
+                precio: Number(document.getElementById('precio').value),
+                precioOld: Number(document.getElementById('precio-old').value) || 0,
+                stock: Number(document.getElementById('stock').value),
+                imagen: mainUrl,
+                imagenes: imgArray,
+                estado: "aprobado",
+                fecha: serverTimestamp()
+            };
 
-        if(id) await updateDoc(doc(db, "productos", id), datos);
-        else await addDoc(collection(db, "productos"), datos);
-        
-        limpiarForm();
-        showToast("Cambios guardados");
-    });
+            if(id) await updateDoc(doc(db, "productos", id), datos);
+            else await addDoc(collection(db, "productos"), datos);
+            
+            limpiarForm();
+            showToast("Cambios guardados");
+        });
+    }
 
     window.prepararEdit = (id) => {
         const p = allProducts.find(x => x.id === id);
@@ -434,7 +448,6 @@
         document.getElementById('btn-cancel-edit').style.display = 'none';
     }
 
-    // TOAST MODIFICADO PARA SOPORTAR ERRORES
     function showToast(text, isError = false) {
         const c = document.getElementById('toast-container');
         const t = document.createElement('div');
