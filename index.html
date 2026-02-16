@@ -398,6 +398,7 @@
                 imgArray = imgArray.concat(extras);
             }
 
+            // DATOS BASE
             const datos = {
                 nombre: document.getElementById('nombre').value,
                 descripcion: document.getElementById('desc').value,
@@ -411,8 +412,15 @@
                 fecha: serverTimestamp()
             };
 
-            if(id) await updateDoc(doc(db, "productos", id), datos);
-            else await addDoc(collection(db, "productos"), datos);
+            // SI ES NUEVO, ASIGNAR DATOS DE YAMI AUTOMÁTICAMENTE
+            if(!id) {
+                datos.waVendedor = "3155445183";
+                datos.nombreTienda = "YaMi Oficial";
+                await addDoc(collection(db, "productos"), datos);
+            } else {
+                // SI ES EDICIÓN, SOLO ACTUALIZAMOS LOS CAMPOS CAMBIADOS
+                await updateDoc(doc(db, "productos", id), datos);
+            }
             
             limpiarForm();
             showToast("Cambios guardados");
