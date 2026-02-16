@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestionar Secciones | YaMi</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root { --naranja: #ff6b00; --oscuro: #232f3e; --gris: #f0f2f5; --rojo: #ff4444; --azul: #2196f3; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--gris); margin: 0; padding: 20px; }
+        .container { max-width: 500px; margin: auto; }
+        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        
+        h2 { color: var(--oscuro); font-weight: 800; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1.5px solid #edf2f7; border-radius: 12px; box-sizing: border-box; outline: none; transition: 0.3s; font-size: 16px; }
+        input:focus { border-color: var(--naranja); }
+
+        .btn { background: var(--naranja); color: white; border: none; padding: 14px; width: 100%; border-radius: 12px; font-weight: bold; cursor: pointer; transition: 0.3s; margin-top: 5px; }
+        .btn:active { transform: scale(0.98); }
+        .btn-cancel { background: #eee; color: #666; margin-top: 10px; }
+
+        .item-cat { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #eee; }
+        .item-cat span { font-weight: 600; color: #444; }
+        
+        .actions { display: flex; gap: 15px; }
+        .btn-action { border: none; background: none; cursor: pointer; font-size: 18px; transition: 0.3s; padding: 5px; }
+        .btn-edit { color: var(--azul); }
+        .btn-del { color: #cbd5e0; }
+        .btn-del:hover { color: var(--rojo); }
+
+        .nav-back { margin-bottom: 20px; display: inline-block; color: var(--oscuro); text-decoration: none; font-weight: bold; font-size: 14px; }
+
+        /* --- NOTIFICACIÓN TOAST --- */
+        #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--oscuro); color: white; padding: 12px 25px; border-radius: 50px; font-size: 14px; display: none; z-index: 10001; animation: slideUp 0.3s ease; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        @keyframes slideUp { from { bottom: -50px; opacity: 0; } to { bottom: 20px; opacity: 1; } }
+
+        /* --- MODAL DE CONFIRMACIÓN --- */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 10000; padding: 20px; box-sizing: border-box; }
+        .confirm-card { background: white; padding: 25px; border-radius: 20px; text-align: center; max-width: 300px; width: 100%; box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
+        .confirm-card i { font-size: 40px; color: var(--rojo); margin-bottom: 15px; }
+        .confirm-btns { display: flex; gap: 10px; margin-top: 20px; }
+        .btn-no { background: #f0f2f5; color: #444; flex: 1; padding: 12px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; }
+        .btn-si { background: var(--rojo); color: white; flex: 1; padding: 12px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div id="toast"></div>
+
+<div id="modal-confirm" class="modal-overlay">
+    <div class="confirm-card">
+        <i class="fas fa-trash-alt"></i>
+        <h3>¿Eliminar sección?</h3>
+        <p style="font-size: 13px; color: #666;">Esta acción no se puede deshacer.</p>
+        <div class="confirm-btns">
+            <button class="btn-no" onclick="cerrarConfirm()">CANCELAR</button>
+            <button class="btn-si" id="btn-confirmar-borrado">BORRAR</button>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <a href="index.html" class="nav-back"><i class="fas fa-arrow-left"></i> Volver al Panel</a>
+    <h2>Configurar Secciones</h2>
+    
+    <div class="card">
+        <input type="hidden" id="edit-id"> <label id="label-form" style="font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase;">Nueva Sección</label>
+        <input type="text" id="nombre-cat" placeholder="Ej: Hamburguesas, Mascotas...">
+        <button id="btn-guardar" class="btn" onclick="guardarCategoria()">AGREGAR SECCIÓN</button>
+        <button id="btn-cancelar-edit" class="btn btn-cancel" style="display:none;" onclick="resetForm()">CANCELAR EDICIÓN</button>
+    </div>
+
+    <div class="card" id="lista-categorias">
+        </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, updateDoc, onSnapshot, deleteDoc, doc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyAKCsoaFZ566UlgM1TeVqWNeOljroaP8VA",
+        authDomain: "express-market-868d9.firebaseapp.com",
+        projectId: "express-market-868d9",
+        storageBucket: "express-market-868d9.firebasestorage.app",
+        messagingSenderId: "502987186701",
+        appId: "1:502987186701:web:9fb3c28ce377fb27552b44"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    function mostrarToast(msj) {
+        const t = document.getElementById('toast');
+        t.innerText = msj;
+        t.style.display = 'block';
+        setTimeout(() => { t.style.display = 'none'; }, 3000);
+    }
+
+    // --- GUARDAR O ACTUALIZAR ---
+    window.guardarCategoria = async () => {
+        const idEdit = document.getElementById('edit-id').value;
+        const nombreInput = document.getElementById('nombre-cat');
+        const nombre = nombreInput.value.trim();
+
+        if(!nombre) return mostrarToast("Escribe un nombre");
+
+        try {
+            if(idEdit) {
+                // Modo Edición
+                await updateDoc(doc(db, "categorias", idEdit), { nombre: nombre });
+                mostrarToast("✏️ Sección actualizada");
+            } else {
+                // Modo Nuevo
+                await addDoc(collection(db, "categorias"), { nombre: nombre, fecha: Date.now() });
+                mostrarToast("✅ Sección creada con éxito");
+            }
+            resetForm();
+        } catch (e) {
+            mostrarToast("❌ Error al procesar");
+        }
+    };
+
+    // --- CARGAR LISTA ---
+    onSnapshot(query(collection(db, "categorias"), orderBy("fecha", "asc")), (snapshot) => {
+        const lista = document.getElementById('lista-categorias');
+        lista.innerHTML = '<h4 style="margin-top:0; color:#94a3b8; font-size:12px; text-transform:uppercase;">Secciones Activas</h4>';
+        snapshot.forEach(d => {
+            const cat = d.data();
+            lista.innerHTML += `
+                <div class="item-cat">
+                    <span>${cat.nombre}</span>
+                    <div class="actions">
+                        <button class="btn-action btn-edit" onclick="prepararEdit('${d.id}', '${cat.nombre}')">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn-action btn-del" onclick="preguntarBorrar('${d.id}')">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                </div>`;
+        });
+    });
+
+    // --- LÓGICA DE EDICIÓN ---
+    window.prepararEdit = (id, nombre) => {
+        document.getElementById('edit-id').value = id;
+        document.getElementById('nombre-cat').value = nombre;
+        document.getElementById('label-form').innerText = "Editando Sección";
+        document.getElementById('btn-guardar').innerText = "GUARDAR CAMBIOS";
+        document.getElementById('btn-cancelar-edit').style.display = 'block';
+        document.getElementById('nombre-cat').focus();
+        window.scrollTo({top: 0, behavior: 'smooth'});
+    };
+
+    window.resetForm = () => {
+        document.getElementById('edit-id').value = '';
+        document.getElementById('nombre-cat').value = '';
+        document.getElementById('label-form').innerText = "Nueva Sección";
+        document.getElementById('btn-guardar').innerText = "AGREGAR SECCIÓN";
+        document.getElementById('btn-cancelar-edit').style.display = 'none';
+    };
+
+    // --- LÓGICA DE BORRADO CON MODAL ---
+    let idParaBorrar = null;
+
+    window.preguntarBorrar = (id) => {
+        idParaBorrar = id;
+        document.getElementById('modal-confirm').style.display = 'flex';
+    };
+
+    window.cerrarConfirm = () => {
+        document.getElementById('modal-confirm').style.display = 'none';
+        idParaBorrar = null;
+    };
+
+    document.getElementById('btn-confirmar-borrado').onclick = async () => {
+        if(idParaBorrar) {
+            try {
+                await deleteDoc(doc(db, "categorias", idParaBorrar));
+                mostrarToast("🗑️ Sección eliminada");
+            } catch (e) {
+                mostrarToast("❌ Error al eliminar");
+            }
+            cerrarConfirm();
+        }
+    };
+</script>
+</body>
+</html>
