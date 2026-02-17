@@ -29,7 +29,10 @@
 
         .pass-box { background: white; padding: 2px 8px; border-radius: 6px; font-family: monospace; font-weight: 900; color: var(--naranja); font-size: 14px; border: 1px solid #ddd; }
         
-        .timer-pro { font-size: 11px; font-weight: bold; color: var(--azul); background: #e0f0ff; padding: 4px 10px; border-radius: 8px; display: inline-block; margin-top: 5px; }
+        /* TIMERS DINÁMICOS */
+        .timer-pro { font-size: 10px; font-weight: bold; color: var(--azul); background: #e0f0ff; padding: 6px 12px; border-radius: 8px; display: inline-block; margin-top: 5px; line-height: 1.4; transition: 0.3s; }
+        .timer-expired { color: white !important; background: var(--rojo) !important; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
 
         .actions { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
         .btn-group { display: flex; gap: 12px; align-items: center; }
@@ -97,32 +100,52 @@
         setTimeout(() => { toast.style.display = 'none'; }, 3000);
     }
 
+    // Listener de Firebase
     onSnapshot(collection(db, "socios"), (snapshot) => {
         todosLosSocios = [];
         snapshot.forEach(d => todosLosSocios.push({ id: d.id, ...d.data() }));
         renderizar(todosLosSocios);
     });
 
+    // Función para procesar y mostrar los datos
     function renderizar(data) {
         container.innerHTML = '';
         data.forEach(s => {
             const esPro = s.plan === 'pro';
             const badgeClass = esPro ? 'badge-pro' : 'badge-gratis';
-            const planText = esPro ? '👑 VERIFICADO PRO' : 'PLAN GRATIS';
+            const planText = esPro ? '💎 VERIFICADO PRO' : 'PLAN GRATIS';
             
-            // Lógica de tiempo
             let tiempoTexto = "";
+            let timerExtraClass = "";
+
             if (esPro && s.fechaPago) {
-                const inicio = s.fechaPago.toDate();
-                const hoy = new Date();
-                const diffTime = Math.abs(hoy - inicio);
-                const diasTranscurridos = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-                const diasRestantes = 30 - diasTranscurridos;
-                tiempoTexto = `<div class="timer-pro"><i class="far fa-clock"></i> Día ${diasTranscurridos} de 30 (Faltan ${diasRestantes > 0 ? diasRestantes : 0} días)</div>`;
+                const ahora = new Date().getTime();
+                const inicio = s.fechaPago.toDate().getTime();
+                const diffMs = ahora - inicio;
+                const treintaDiasMs = 30 * 24 * 60 * 60 * 1000;
+
+                // Si ya pasaron los 30 días, ejecutar auto-degradación
+                if (diffMs >= treintaDiasMs) {
+                    actualizarSocioAGratis(s.id, s.nombreTienda);
+                    timerExtraClass = "timer-expired";
+                }
+
+                // Cálculos de tiempo real
+                const dias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                const horas = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutos = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+                // Si faltan menos de 2 días o ya venció, se pone rojo
+                if (dias >= 28) timerExtraClass = "timer-expired";
+
+                tiempoTexto = `
+                    <div class="timer-pro ${timerExtraClass}">
+                        <i class="far fa-clock"></i> <b>Día ${dias} de 30</b><br>
+                        ${horas}h ${minutos}m activos
+                    </div>`;
             }
 
-            // Mensaje de WhatsApp con contraseña
-            const mensajeWA = encodeURIComponent(`Hola ${s.nombreTienda}, aquí tienes tus datos de acceso a YaMi Socios:\n\n📱 WhatsApp: ${s.celular}\n🔑 Código: ${s.codigo}\n\n¡Sigue vendiendo con todo! 🚀`);
+            const mensajeWA = encodeURIComponent(`Hola ${s.nombreTienda}, aquí tienes tus datos de acceso a YaMi Socios:\n\n📱 WhatsApp: ${s.celular}\n🔐 Código: ${s.codigo}\n\n¡Sigue vendiendo con todo! 🚀`);
 
             const card = document.createElement('div');
             card.className = `card-socio ${esPro ? 'card-pro' : ''}`;
@@ -150,16 +173,22 @@
         });
     }
 
-    // --- CAMBIAR PLAN CON FECHA DE PAGO ---
+    // Actualización automática cada minuto sin recargar
+    setInterval(() => {
+        if (todosLosSocios.length > 0) renderizar(todosLosSocios);
+    }, 60000);
+
+    async function actualizarSocioAGratis(id, nombre) {
+        try {
+            await updateDoc(doc(db, "socios", id), { plan: 'gratis', fechaPago: null });
+            notify(`${nombre} ha vuelto a Plan Gratis (Tiempo Expirado)`);
+        } catch (e) { console.error("Error degradando plan", e); }
+    }
+
     window.cambiarPlan = async (id, nuevoPlan) => {
         try {
             const dataActualizar = { plan: nuevoPlan };
-            if (nuevoPlan === 'pro') {
-                dataActualizar.fechaPago = new Date(); // Inicia el contador de 30 días
-            } else {
-                dataActualizar.fechaPago = null; // Resetea si vuelve a gratis
-            }
-            
+            dataActualizar.fechaPago = (nuevoPlan === 'pro') ? new Date() : null;
             await updateDoc(doc(db, "socios", id), dataActualizar);
             notify(`Socio actualizado a ${nuevoPlan.toUpperCase()}`);
         } catch (e) { notify("Error al actualizar plan"); }
