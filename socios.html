@@ -68,7 +68,7 @@
 </header>
 
 <div class="search-container">
-    <input type="number" id="buscador" class="search-input" placeholder="Buscar WhatsApp del socio..." oninput="filtrarSocios()">
+    <input type="text" id="buscador" class="search-input" placeholder="Buscar por Tienda o WhatsApp..." oninput="filtrarSocios()">
     <i class="fas fa-search search-icon"></i>
 </div>
 
@@ -76,7 +76,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, onSnapshot, doc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAKCsoaFZ566UlgM1TeVqWNeOljroaP8VA",
@@ -113,7 +113,7 @@
         data.forEach(s => {
             const esPro = s.plan === 'pro';
             const badgeClass = esPro ? 'badge-pro' : 'badge-gratis';
-            const planText = esPro ? '💎 VERIFICADO PRO' : 'PLAN GRATIS';
+            const planText = esPro ? '💎 VERIFICADO PRO' : 'PRUEBA GRATIS';
             
             let tiempoTexto = "";
             let timerExtraClass = "";
@@ -124,25 +124,43 @@
                 const diffMs = ahora - inicio;
                 const treintaDiasMs = 30 * 24 * 60 * 60 * 1000;
 
-                // Si ya pasaron los 30 días, ejecutar auto-degradación
+                // Si ya pasaron los 30 días PRO, auto-degradación
                 if (diffMs >= treintaDiasMs) {
                     actualizarSocioAGratis(s.id, s.nombreTienda);
                     timerExtraClass = "timer-expired";
                 }
 
-                // Cálculos de tiempo real
                 const dias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
                 const horas = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
                 const minutos = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
 
-                // Si faltan menos de 2 días o ya venció, se pone rojo
                 if (dias >= 28) timerExtraClass = "timer-expired";
 
                 tiempoTexto = `
                     <div class="timer-pro ${timerExtraClass}">
-                        <i class="far fa-clock"></i> <b>Día ${dias} de 30</b><br>
+                        <i class="far fa-clock"></i> <b>PRO: Día ${dias + 1} de 30</b><br>
                         ${horas}h ${minutos}m activos
                     </div>`;
+            } else if (!esPro && s.fechaRegistro) {
+                // PRUEBA DE 10 DÍAS
+                const ahora = new Date().getTime();
+                const inicio = s.fechaRegistro.toDate().getTime();
+                const diezDiasMs = 10 * 24 * 60 * 60 * 1000;
+                const diffMs = ahora - inicio;
+
+                if (diffMs >= diezDiasMs) {
+                    timerExtraClass = "timer-expired";
+                    tiempoTexto = `
+                        <div class="timer-pro ${timerExtraClass}">
+                            <i class="fas fa-exclamation-triangle"></i> <b>Prueba Expirada (10 días)</b>
+                        </div>`;
+                } else {
+                    const diasUsados = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
+                    tiempoTexto = `
+                        <div class="timer-pro">
+                            <i class="far fa-clock"></i> Día ${diasUsados} de 10 (Gratis)
+                        </div>`;
+                }
             }
 
             const mensajeWA = encodeURIComponent(`Hola ${s.nombreTienda}, aquí tienes tus datos de acceso a YaMi Socios:\n\n📱 WhatsApp: ${s.celular}\n🔐 Código: ${s.codigo}\n\n¡Sigue vendiendo con todo! 🚀`);
@@ -173,7 +191,6 @@
         });
     }
 
-    // Actualización automática cada minuto sin recargar
     setInterval(() => {
         if (todosLosSocios.length > 0) renderizar(todosLosSocios);
     }, 60000);
@@ -195,8 +212,8 @@
     };
 
     window.filtrarSocios = () => {
-        const val = document.getElementById('buscador').value;
-        renderizar(todosLosSocios.filter(s => s.celular.includes(val)));
+        const val = document.getElementById('buscador').value.toLowerCase();
+        renderizar(todosLosSocios.filter(s => s.celular.includes(val) || s.nombreTienda.toLowerCase().includes(val)));
     };
 
     window.abrirModal = (id, nom) => {
@@ -215,3 +232,4 @@
 </script>
 </body>
 </html>
+
