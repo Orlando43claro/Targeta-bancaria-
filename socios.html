@@ -68,7 +68,7 @@
 </header>
 
 <div class="search-container">
-    <input type="text" id="buscador" class="search-input" placeholder="Buscar por Tienda o WhatsApp..." oninput="filtrarSocios()">
+    <input type="number" id="buscador" class="search-input" placeholder="Buscar WhatsApp del socio..." oninput="filtrarSocios()">
     <i class="fas fa-search search-icon"></i>
 </div>
 
@@ -76,7 +76,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, onSnapshot, doc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAKCsoaFZ566UlgM1TeVqWNeOljroaP8VA",
@@ -107,58 +107,53 @@
         renderizar(todosLosSocios);
     });
 
+    // Obtener milisegundos independientemente de cómo venga la fecha desde Firestore
+    function parsearFecha(fechaPago) {
+        if (!fechaPago) return null;
+        if (typeof fechaPago.toDate === 'function') return fechaPago.toDate().getTime();
+        if (fechaPago instanceof Date) return fechaPago.getTime();
+        if (typeof fechaPago === 'number') return fechaPago;
+        if (typeof fechaPago === 'string') return new Date(fechaPago).getTime();
+        return null;
+    }
+
     // Función para procesar y mostrar los datos
     function renderizar(data) {
         container.innerHTML = '';
         data.forEach(s => {
             const esPro = s.plan === 'pro';
             const badgeClass = esPro ? 'badge-pro' : 'badge-gratis';
-            const planText = esPro ? '💎 VERIFICADO PRO' : 'PRUEBA GRATIS';
+            const planText = esPro ? '💎 VERIFICADO PRO' : 'PLAN GRATIS';
             
             let tiempoTexto = "";
             let timerExtraClass = "";
 
             if (esPro && s.fechaPago) {
                 const ahora = new Date().getTime();
-                const inicio = s.fechaPago.toDate().getTime();
-                const diffMs = ahora - inicio;
-                const treintaDiasMs = 30 * 24 * 60 * 60 * 1000;
+                const inicio = parsearFecha(s.fechaPago);
 
-                // Si ya pasaron los 30 días PRO, auto-degradación
-                if (diffMs >= treintaDiasMs) {
-                    actualizarSocioAGratis(s.id, s.nombreTienda);
-                    timerExtraClass = "timer-expired";
-                }
+                if (inicio) {
+                    const diffMs = ahora - inicio;
+                    const treintaDiasMs = 30 * 24 * 60 * 60 * 1000;
 
-                const dias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-                const horas = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                const minutos = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+                    // Si ya pasaron los 30 días, ejecutar auto-degradación
+                    if (diffMs >= treintaDiasMs) {
+                        actualizarSocioAGratis(s.id, s.nombreTienda);
+                        timerExtraClass = "timer-expired";
+                    }
 
-                if (dias >= 28) timerExtraClass = "timer-expired";
+                    // Cálculos de tiempo real
+                    const dias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                    const horas = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                    const minutos = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
 
-                tiempoTexto = `
-                    <div class="timer-pro ${timerExtraClass}">
-                        <i class="far fa-clock"></i> <b>PRO: Día ${dias + 1} de 30</b><br>
-                        ${horas}h ${minutos}m activos
-                    </div>`;
-            } else if (!esPro && s.fechaRegistro) {
-                // PRUEBA DE 10 DÍAS
-                const ahora = new Date().getTime();
-                const inicio = s.fechaRegistro.toDate().getTime();
-                const diezDiasMs = 10 * 24 * 60 * 60 * 1000;
-                const diffMs = ahora - inicio;
+                    // Si faltan menos de 2 días o ya venció, se pone rojo
+                    if (dias >= 28) timerExtraClass = "timer-expired";
 
-                if (diffMs >= diezDiasMs) {
-                    timerExtraClass = "timer-expired";
                     tiempoTexto = `
                         <div class="timer-pro ${timerExtraClass}">
-                            <i class="fas fa-exclamation-triangle"></i> <b>Prueba Expirada (10 días)</b>
-                        </div>`;
-                } else {
-                    const diasUsados = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
-                    tiempoTexto = `
-                        <div class="timer-pro">
-                            <i class="far fa-clock"></i> Día ${diasUsados} de 10 (Gratis)
+                            <i class="far fa-clock"></i> <b>Día ${dias} de 30</b><br>
+                            ${horas}h ${minutos}m activos
                         </div>`;
                 }
             }
@@ -191,6 +186,7 @@
         });
     }
 
+    // Actualización automática cada minuto sin recargar
     setInterval(() => {
         if (todosLosSocios.length > 0) renderizar(todosLosSocios);
     }, 60000);
@@ -205,15 +201,16 @@
     window.cambiarPlan = async (id, nuevoPlan) => {
         try {
             const dataActualizar = { plan: nuevoPlan };
-            dataActualizar.fechaPago = (nuevoPlan === 'pro') ? new Date() : null;
+            // Usamos serverTimestamp() para garantizar sincronización exacta en Firestore
+            dataActualizar.fechaPago = (nuevoPlan === 'pro') ? serverTimestamp() : null;
             await updateDoc(doc(db, "socios", id), dataActualizar);
             notify(`Socio actualizado a ${nuevoPlan.toUpperCase()}`);
         } catch (e) { notify("Error al actualizar plan"); }
     };
 
     window.filtrarSocios = () => {
-        const val = document.getElementById('buscador').value.toLowerCase();
-        renderizar(todosLosSocios.filter(s => s.celular.includes(val) || s.nombreTienda.toLowerCase().includes(val)));
+        const val = document.getElementById('buscador').value;
+        renderizar(todosLosSocios.filter(s => s.celular.includes(val)));
     };
 
     window.abrirModal = (id, nom) => {
@@ -232,4 +229,3 @@
 </script>
 </body>
 </html>
-
