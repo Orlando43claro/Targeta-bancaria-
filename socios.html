@@ -42,7 +42,8 @@
         .btn-to-gratis { background: #e2e8f0; color: #475569; }
 
         .btn-wa { color: var(--verde); font-size: 24px; text-decoration: none; }
-        .btn-del { color: #cbd5e1; border: none; background: none; cursor: pointer; font-size: 18px; }
+        .btn-del { color: #cbd5e1; border: none; background: none; cursor: pointer; font-size: 18px; transition: 0.2s; }
+        .btn-del:hover { color: var(--rojo); }
 
         #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--oscuro); color: white; padding: 12px 25px; border-radius: 50px; font-size: 13px; font-weight: bold; display: none; z-index: 10001; border-bottom: 3px solid var(--naranja); }
         .modal-confirm { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 10000; padding: 20px; }
@@ -55,9 +56,10 @@
 
 <div id="confirm-modal" class="modal-confirm">
     <div class="modal-card">
-        <h3 style="margin:0;">¿Eliminar Socio?</h3>
-        <p id="socio-nombre" style="font-weight: bold; color: var(--naranja);"></p>
-        <button class="btn-upgrade btn-to-pro" style="background:var(--rojo); color:white; width:100%; padding:12px; margin-bottom:10px;" id="confirm-ok">SÍ, ELIMINAR</button>
+        <h3 style="margin:0;">¿Eliminar Socio y su Tienda?</h3>
+        <p id="socio-nombre" style="font-weight: bold; color: var(--naranja); margin: 10px 0;"></p>
+        <p style="font-size: 11px; color: #666; margin-bottom: 15px;">Esto borrará su cuenta, todos sus productos y sus imágenes permanentemente.</p>
+        <button class="btn-upgrade btn-to-pro" style="background:var(--rojo); color:white; width:100%; padding:12px; margin-bottom:10px;" id="confirm-ok">SÍ, ELIMINAR TODO</button>
         <button class="btn-upgrade" style="width:100%; padding:12px; background: #eee;" onclick="cerrarModal()">CANCELAR</button>
     </div>
 </div>
@@ -76,7 +78,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, onSnapshot, doc, deleteDoc, updateDoc, serverTimestamp, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAKCsoaFZ566UlgM1TeVqWNeOljroaP8VA",
@@ -93,6 +95,7 @@
     const container = document.getElementById('lista-socios');
     let todosLosSocios = [];
     let idAEliminar = null;
+    let celularAEliminar = null; // Almacenamos el cel para buscar los productos
 
     function notify(msj) {
         const toast = document.getElementById('toast');
@@ -108,12 +111,12 @@
     });
 
     // Obtener milisegundos independientemente de cómo venga la fecha desde Firestore
-    function parsearFecha(fechaPago) {
-        if (!fechaPago) return null;
-        if (typeof fechaPago.toDate === 'function') return fechaPago.toDate().getTime();
-        if (fechaPago instanceof Date) return fechaPago.getTime();
-        if (typeof fechaPago === 'number') return fechaPago;
-        if (typeof fechaPago === 'string') return new Date(fechaPago).getTime();
+    function parsearFecha(fechaFB) {
+        if (!fechaFB) return null;
+        if (typeof fechaFB.toDate === 'function') return fechaFB.toDate().getTime();
+        if (fechaFB instanceof Date) return fechaFB.getTime();
+        if (typeof fechaFB === 'number') return fechaFB;
+        if (typeof fechaFB === 'string') return new Date(fechaFB).getTime();
         return null;
     }
 
@@ -128,6 +131,7 @@
             let tiempoTexto = "";
             let timerExtraClass = "";
 
+            // LOGICA PARA SOCIOS PRO (30 Días)
             if (esPro && s.fechaPago) {
                 const ahora = new Date().getTime();
                 const inicio = parsearFecha(s.fechaPago);
@@ -136,25 +140,50 @@
                     const diffMs = ahora - inicio;
                     const treintaDiasMs = 30 * 24 * 60 * 60 * 1000;
 
-                    // Si ya pasaron los 30 días, ejecutar auto-degradación
                     if (diffMs >= treintaDiasMs) {
                         actualizarSocioAGratis(s.id, s.nombreTienda);
                         timerExtraClass = "timer-expired";
                     }
 
-                    // Cálculos de tiempo real
                     const dias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
                     const horas = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
                     const minutos = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
 
-                    // Si faltan menos de 2 días o ya venció, se pone rojo
                     if (dias >= 28) timerExtraClass = "timer-expired";
 
                     tiempoTexto = `
                         <div class="timer-pro ${timerExtraClass}">
-                            <i class="far fa-clock"></i> <b>Día ${dias} de 30</b><br>
+                            <i class="far fa-clock"></i> <b>Día ${dias} de 30 (PRO)</b><br>
                             ${horas}h ${minutos}m activos
                         </div>`;
+                }
+            } 
+            // NUEVA LÓGICA PARA SOCIOS GRATIS (10 Días)
+            else if (!esPro && s.fecha) {
+                const ahora = new Date().getTime();
+                const inicio = parsearFecha(s.fecha);
+
+                if (inicio) {
+                    const diffMs = ahora - inicio;
+                    const diezDiasMs = 10 * 24 * 60 * 60 * 1000;
+                    
+                    const dias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                    const horas = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                    const minutos = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+                    if (diffMs >= diezDiasMs) {
+                        tiempoTexto = `
+                            <div class="timer-pro timer-expired" style="background: #fee2e2 !important; color: #dc2626 !important; animation: none;">
+                                <i class="fas fa-exclamation-triangle"></i> <b>10 Días Agotados</b><br>
+                                Lleva ${dias} días
+                            </div>`;
+                    } else {
+                        tiempoTexto = `
+                            <div class="timer-pro" style="background: #f1f5f9; color: #475569;">
+                                <i class="far fa-clock"></i> <b>Día ${dias} de 10 (Prueba)</b><br>
+                                Lleva ${dias}d ${horas}h ${minutos}m
+                            </div>`;
+                    }
                 }
             }
 
@@ -178,7 +207,8 @@
                 <div class="actions">
                     <div class="btn-group">
                         <a href="https://wa.me/${s.celular}?text=${mensajeWA}" target="_blank" class="btn-wa"><i class="fab fa-whatsapp"></i></a>
-                        <button class="btn-del" onclick="abrirModal('${s.id}', '${s.nombreTienda}')"><i class="fas fa-trash-alt"></i></button>
+                        <!-- Se pasa el id, el nombre y el celular para poder borrar la tienda -->
+                        <button class="btn-del" onclick="abrirModal('${s.id}', '${s.nombreTienda}', '${s.celular}')"><i class="fas fa-trash-alt"></i></button>
                     </div>
                 </div>
             `;
@@ -186,7 +216,6 @@
         });
     }
 
-    // Actualización automática cada minuto sin recargar
     setInterval(() => {
         if (todosLosSocios.length > 0) renderizar(todosLosSocios);
     }, 60000);
@@ -201,7 +230,6 @@
     window.cambiarPlan = async (id, nuevoPlan) => {
         try {
             const dataActualizar = { plan: nuevoPlan };
-            // Usamos serverTimestamp() para garantizar sincronización exacta en Firestore
             dataActualizar.fechaPago = (nuevoPlan === 'pro') ? serverTimestamp() : null;
             await updateDoc(doc(db, "socios", id), dataActualizar);
             notify(`Socio actualizado a ${nuevoPlan.toUpperCase()}`);
@@ -213,18 +241,48 @@
         renderizar(todosLosSocios.filter(s => s.celular.includes(val)));
     };
 
-    window.abrirModal = (id, nom) => {
+    // ABRIR MODAL GUARDANDO EL CELULAR
+    window.abrirModal = (id, nom, celular) => {
         idAEliminar = id;
+        celularAEliminar = celular;
         document.getElementById('socio-nombre').innerText = nom;
         document.getElementById('confirm-modal').style.display = 'flex';
     };
 
     window.cerrarModal = () => document.getElementById('confirm-modal').style.display = 'none';
 
+    // FUNCIÓN ELIMINAR CASCADA (SOCIO + PRODUCTOS/IMÁGENES)
     document.getElementById('confirm-ok').onclick = async () => {
-        await deleteDoc(doc(db, "socios", idAEliminar));
-        cerrarModal();
-        notify("Socio eliminado");
+        const btn = document.getElementById('confirm-ok');
+        btn.innerText = "ELIMINANDO TIENDA...";
+        btn.disabled = true;
+
+        try {
+            // 1. Buscar y eliminar todos los productos ligados al celular de este socio
+            if (celularAEliminar) {
+                const qProd = query(collection(db, "productos"), where("waVendedor", "==", celularAEliminar));
+                const snapProd = await getDocs(qProd);
+                const borradoPromesas = [];
+                
+                snapProd.forEach(p => {
+                    borradoPromesas.push(deleteDoc(doc(db, "productos", p.id)));
+                });
+                // Esperar a que se borren todos los productos (y sus imágenes en base64)
+                await Promise.all(borradoPromesas);
+            }
+
+            // 2. Eliminar al socio del registro
+            await deleteDoc(doc(db, "socios", idAEliminar));
+            
+            cerrarModal();
+            notify("Socio y todos sus productos eliminados por completo");
+        } catch (error) {
+            console.error(error);
+            notify("Hubo un error al eliminar los datos.");
+        } finally {
+            btn.innerText = "SÍ, ELIMINAR TODO";
+            btn.disabled = false;
+        }
     };
 </script>
 </body>
