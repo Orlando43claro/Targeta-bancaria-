@@ -29,7 +29,6 @@
 
         .pass-box { background: white; padding: 2px 8px; border-radius: 6px; font-family: monospace; font-weight: 900; color: var(--naranja); font-size: 14px; border: 1px solid #ddd; }
         
-        /* TIMERS DINÁMICOS */
         .timer-pro { font-size: 10px; font-weight: bold; color: var(--azul); background: #e0f0ff; padding: 6px 12px; border-radius: 8px; display: inline-block; margin-top: 5px; line-height: 1.4; transition: 0.3s; }
         .timer-expired { color: white !important; background: var(--rojo) !important; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
@@ -103,24 +102,22 @@
         setTimeout(() => { toast.style.display = 'none'; }, 3000);
     }
 
-    // Convertidor seguro de fechas de Firestore
     function parsearFecha(fechaFB) {
         if (!fechaFB) return null;
         if (typeof fechaFB.toDate === 'function') return fechaFB.toDate().getTime();
+        if (fechaFB.seconds) return fechaFB.seconds * 1000;
         if (fechaFB instanceof Date) return fechaFB.getTime();
         if (typeof fechaFB === 'number') return fechaFB;
         if (typeof fechaFB === 'string') return new Date(fechaFB).getTime();
         return null;
     }
 
-    // Listener de Firebase
     onSnapshot(collection(db, "socios"), (snapshot) => {
         todosLosSocios = [];
         snapshot.forEach(d => todosLosSocios.push({ id: d.id, ...d.data() }));
         renderizar(todosLosSocios);
     });
 
-    // Función para procesar y mostrar los datos
     function renderizar(data) {
         container.innerHTML = '';
         data.forEach(s => {
@@ -129,30 +126,24 @@
             const planText = esPro ? '💎 VERIFICADO PRO' : 'PLAN GRATIS';
             
             let tiempoTexto = "";
-            let timerExtraClass = "";
 
-            // PLAN PRO (30 DÍAS)
             if (esPro && s.fechaPago) {
                 const ahora = new Date().getTime();
                 const inicio = parsearFecha(s.fechaPago);
 
                 if (inicio) {
                     const diffMs = ahora - inicio;
-                    // Se eliminó la auto-degradación. El socio se mantiene PRO indefinidamente.
-                    // Puedes agregar una lógica aquí para avisar si ya pasaron 30 días, pero sin degradarlo.
-                    
                     const dias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
                     const horas = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
                     const minutos = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
 
                     tiempoTexto = `
-                        <div class="timer-pro ${timerExtraClass}">
-                            <i class="far fa-clock"></i> <b>Día ${dias} de 30 (PRO)</b><br>
+                        <div class="timer-pro">
+                            <i class="far fa-clock"></i> <b>Día ${dias + 1} de 30 (PRO)</b><br>
                             ${horas}h ${minutos}m activos
                         </div>`;
                 }
             } 
-            // PLAN GRATIS (10 DÍAS)
             else if (!esPro && s.fecha) {
                 const ahora = new Date().getTime();
                 const inicio = parsearFecha(s.fecha);
@@ -174,7 +165,7 @@
                     } else {
                         tiempoTexto = `
                             <div class="timer-pro" style="background: #f1f5f9; color: #475569;">
-                                <i class="far fa-clock"></i> <b>Día ${dias} de 10 (Prueba)</b><br>
+                                <i class="far fa-clock"></i> <b>Día ${dias + 1} de 10 (Prueba)</b><br>
                                 Lleva ${dias}d ${horas}h ${minutos}m
                             </div>`;
                     }
@@ -209,12 +200,9 @@
         });
     }
 
-    // Actualización automática cada minuto sin recargar
     setInterval(() => {
         if (todosLosSocios.length > 0) renderizar(todosLosSocios);
     }, 60000);
-
-    // Se eliminó la función auto-degradarSocioAGratis.
 
     window.cambiarPlan = async (id, nuevoPlan) => {
         try {
@@ -239,7 +227,6 @@
 
     window.cerrarModal = () => document.getElementById('confirm-modal').style.display = 'none';
 
-    // Borrado en cascada (Socio + Productos/Imágenes)
     document.getElementById('confirm-ok').onclick = async () => {
         const btn = document.getElementById('confirm-ok');
         btn.innerText = "ELIMINANDO...";
