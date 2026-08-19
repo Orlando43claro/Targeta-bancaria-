@@ -58,7 +58,7 @@
     <div class="modal-card">
         <h3 style="margin:0;">¿Eliminar Socio y su Tienda?</h3>
         <p id="socio-nombre" style="font-weight: bold; color: var(--naranja); margin: 10px 0;"></p>
-        <p style="font-size: 11px; color: #666; margin-bottom: 15px;">Esto borrará su cuenta, todos sus productos y sus imágenes permanentemente.</p>
+        <p style="font-size: 11px; color: #666; margin-bottom: 15px;">Se eliminará la cuenta del socio, sus productos e imágenes asociadas.</p>
         <button class="btn-upgrade btn-to-pro" style="background:var(--rojo); color:white; width:100%; padding:12px; margin-bottom:10px;" id="confirm-ok">SÍ, ELIMINAR TODO</button>
         <button class="btn-upgrade" style="width:100%; padding:12px; background: #eee;" onclick="cerrarModal()">CANCELAR</button>
     </div>
@@ -95,7 +95,7 @@
     const container = document.getElementById('lista-socios');
     let todosLosSocios = [];
     let idAEliminar = null;
-    let celularAEliminar = null; // Almacenamos el cel para buscar los productos
+    let celularAEliminar = null;
 
     function notify(msj) {
         const toast = document.getElementById('toast');
@@ -103,14 +103,7 @@
         setTimeout(() => { toast.style.display = 'none'; }, 3000);
     }
 
-    // Listener de Firebase
-    onSnapshot(collection(db, "socios"), (snapshot) => {
-        todosLosSocios = [];
-        snapshot.forEach(d => todosLosSocios.push({ id: d.id, ...d.data() }));
-        renderizar(todosLosSocios);
-    });
-
-    // Obtener milisegundos independientemente de cómo venga la fecha desde Firestore
+    // Convertidor seguro de fechas de Firestore
     function parsearFecha(fechaFB) {
         if (!fechaFB) return null;
         if (typeof fechaFB.toDate === 'function') return fechaFB.toDate().getTime();
@@ -119,6 +112,13 @@
         if (typeof fechaFB === 'string') return new Date(fechaFB).getTime();
         return null;
     }
+
+    // Listener de Firebase
+    onSnapshot(collection(db, "socios"), (snapshot) => {
+        todosLosSocios = [];
+        snapshot.forEach(d => todosLosSocios.push({ id: d.id, ...d.data() }));
+        renderizar(todosLosSocios);
+    });
 
     // Función para procesar y mostrar los datos
     function renderizar(data) {
@@ -131,25 +131,19 @@
             let tiempoTexto = "";
             let timerExtraClass = "";
 
-            // LOGICA PARA SOCIOS PRO (30 Días)
+            // PLAN PRO (30 DÍAS)
             if (esPro && s.fechaPago) {
                 const ahora = new Date().getTime();
                 const inicio = parsearFecha(s.fechaPago);
 
                 if (inicio) {
                     const diffMs = ahora - inicio;
-                    const treintaDiasMs = 30 * 24 * 60 * 60 * 1000;
-
-                    if (diffMs >= treintaDiasMs) {
-                        actualizarSocioAGratis(s.id, s.nombreTienda);
-                        timerExtraClass = "timer-expired";
-                    }
-
+                    // Se eliminó la auto-degradación. El socio se mantiene PRO indefinidamente.
+                    // Puedes agregar una lógica aquí para avisar si ya pasaron 30 días, pero sin degradarlo.
+                    
                     const dias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
                     const horas = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
                     const minutos = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-
-                    if (dias >= 28) timerExtraClass = "timer-expired";
 
                     tiempoTexto = `
                         <div class="timer-pro ${timerExtraClass}">
@@ -158,7 +152,7 @@
                         </div>`;
                 }
             } 
-            // NUEVA LÓGICA PARA SOCIOS GRATIS (10 Días)
+            // PLAN GRATIS (10 DÍAS)
             else if (!esPro && s.fecha) {
                 const ahora = new Date().getTime();
                 const inicio = parsearFecha(s.fecha);
@@ -207,7 +201,6 @@
                 <div class="actions">
                     <div class="btn-group">
                         <a href="https://wa.me/${s.celular}?text=${mensajeWA}" target="_blank" class="btn-wa"><i class="fab fa-whatsapp"></i></a>
-                        <!-- Se pasa el id, el nombre y el celular para poder borrar la tienda -->
                         <button class="btn-del" onclick="abrirModal('${s.id}', '${s.nombreTienda}', '${s.celular}')"><i class="fas fa-trash-alt"></i></button>
                     </div>
                 </div>
@@ -216,16 +209,12 @@
         });
     }
 
+    // Actualización automática cada minuto sin recargar
     setInterval(() => {
         if (todosLosSocios.length > 0) renderizar(todosLosSocios);
     }, 60000);
 
-    async function actualizarSocioAGratis(id, nombre) {
-        try {
-            await updateDoc(doc(db, "socios", id), { plan: 'gratis', fechaPago: null });
-            notify(`${nombre} ha vuelto a Plan Gratis (Tiempo Expirado)`);
-        } catch (e) { console.error("Error degradando plan", e); }
-    }
+    // Se eliminó la función auto-degradarSocioAGratis.
 
     window.cambiarPlan = async (id, nuevoPlan) => {
         try {
@@ -241,7 +230,6 @@
         renderizar(todosLosSocios.filter(s => s.celular.includes(val)));
     };
 
-    // ABRIR MODAL GUARDANDO EL CELULAR
     window.abrirModal = (id, nom, celular) => {
         idAEliminar = id;
         celularAEliminar = celular;
@@ -251,14 +239,13 @@
 
     window.cerrarModal = () => document.getElementById('confirm-modal').style.display = 'none';
 
-    // FUNCIÓN ELIMINAR CASCADA (SOCIO + PRODUCTOS/IMÁGENES)
+    // Borrado en cascada (Socio + Productos/Imágenes)
     document.getElementById('confirm-ok').onclick = async () => {
         const btn = document.getElementById('confirm-ok');
-        btn.innerText = "ELIMINANDO TIENDA...";
+        btn.innerText = "ELIMINANDO...";
         btn.disabled = true;
 
         try {
-            // 1. Buscar y eliminar todos los productos ligados al celular de este socio
             if (celularAEliminar) {
                 const qProd = query(collection(db, "productos"), where("waVendedor", "==", celularAEliminar));
                 const snapProd = await getDocs(qProd);
@@ -267,18 +254,15 @@
                 snapProd.forEach(p => {
                     borradoPromesas.push(deleteDoc(doc(db, "productos", p.id)));
                 });
-                // Esperar a que se borren todos los productos (y sus imágenes en base64)
                 await Promise.all(borradoPromesas);
             }
 
-            // 2. Eliminar al socio del registro
             await deleteDoc(doc(db, "socios", idAEliminar));
-            
             cerrarModal();
-            notify("Socio y todos sus productos eliminados por completo");
-        } catch (error) {
-            console.error(error);
-            notify("Hubo un error al eliminar los datos.");
+            notify("Socio y su tienda borrados por completo");
+        } catch (e) {
+            console.error(e);
+            notify("Error al eliminar los datos");
         } finally {
             btn.innerText = "SÍ, ELIMINAR TODO";
             btn.disabled = false;
